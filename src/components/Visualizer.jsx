@@ -19,6 +19,23 @@ export default function Visualizer({ proving, qualified }) {
   const [ops, setOps] = useState([])
   const [active, setActive] = useState(false)
 
+  // Auto-run idle demo loop
+  useEffect(() => {
+    if (proving) return
+    if (qualified !== null) return
+    const idleInterval = setInterval(() => {
+      setNodes(prev => {
+        const next = [...prev, rand()]
+        return next.length > 6 ? next.slice(-6) : next
+      })
+      setOps(prev => {
+        const next = [...prev, OPERATIONS[Math.floor(Math.random() * OPERATIONS.length)]]
+        return next.length > 3 ? next.slice(-3) : next
+      })
+    }, 1200)
+    return () => clearInterval(idleInterval)
+  }, [proving, qualified])
+
   useEffect(() => {
     if (proving) {
       setActive(true)
@@ -84,7 +101,7 @@ export default function Visualizer({ proving, qualified }) {
       {/* MAIN PANEL */}
       <div style={{
         background: '#0A0A0A',
-        border: `1px solid ${active ? 'var(--yellow)' : '#2A2A2A'}`,
+        border: `1px solid ${active || (!proving && qualified === null) ? 'var(--yellow)' : '#2A2A2A'}`,
         padding: '20px',
         transition: 'border-color 0.4s ease',
         marginBottom: 12,
@@ -114,12 +131,12 @@ export default function Visualizer({ proving, qualified }) {
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: active ? 'var(--yellow)' : '#333',
+              background: active || (!proving && qualified === null) ? 'var(--yellow)' : '#333',
               display: 'block',
               transition: 'background 0.3s',
-              animation: active ? 'pulse 0.8s infinite' : 'none',
+              animation: active || (!proving && qualified === null) ? 'pulse 1.4s infinite' : 'none',
             }} />
-            {active ? 'COMPUTING' : 'IDLE'}
+            {active ? 'COMPUTING' : proving ? 'IDLE' : 'LIVE DEMO'}
           </div>
           <div style={{
             fontSize: 10,
@@ -130,10 +147,7 @@ export default function Visualizer({ proving, qualified }) {
         </div>
 
         {/* HEX STREAM */}
-        <div style={{
-          marginBottom: 16,
-          minHeight: 60,
-        }}>
+        <div style={{ marginBottom: 16, minHeight: 60 }}>
           <div style={{
             fontSize: 9,
             color: '#333',
@@ -142,14 +156,10 @@ export default function Visualizer({ proving, qualified }) {
             marginBottom: 8,
             textTransform: 'uppercase',
           }}>Encrypted Payload Stream</div>
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 6,
-          }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {nodes.length === 0 ? (
               <span style={{ fontSize: 11, color: '#2A2A2A', fontFamily: 'DM Mono, monospace' }}>
-                — awaiting proof submission —
+                — initializing —
               </span>
             ) : nodes.map((n, i) => (
               <span key={i} style={{
@@ -181,7 +191,7 @@ export default function Visualizer({ proving, qualified }) {
           }}>
             {ops.length === 0 ? (
               <span style={{ fontSize: 11, color: '#2A2A2A', fontFamily: 'DM Mono, monospace' }}>
-                — no operations —
+                — loading —
               </span>
             ) : ops.map((op, i) => (
               <div key={i} style={{
@@ -219,23 +229,24 @@ export default function Visualizer({ proving, qualified }) {
             gap: 8,
             animation: 'fadeIn 0.5s ease',
           }}>
-            <div style={{
-              fontSize: 32,
-              color: '#39FF14',
-              fontFamily: 'Syne, sans-serif',
-              fontWeight: 800,
-            }}>✓</div>
-            <div style={{
-              fontSize: 12,
-              color: '#39FF14',
-              fontFamily: 'DM Mono, monospace',
-              letterSpacing: '2px',
-            }}>PROOF ACCEPTED</div>
-            <div style={{
-              fontSize: 10,
-              color: '#555',
-              fontFamily: 'DM Mono, monospace',
-            }}>Credential minted onchain</div>
+            <div style={{ fontSize: 32, color: '#39FF14', fontFamily: 'Syne, sans-serif', fontWeight: 800 }}>✓</div>
+            <div style={{ fontSize: 12, color: '#39FF14', fontFamily: 'DM Mono, monospace', letterSpacing: '2px' }}>PROOF ACCEPTED</div>
+            <div style={{ fontSize: 10, color: '#555', fontFamily: 'DM Mono, monospace' }}>Credential minted onchain</div>
+            <a
+              href="https://sepolia.etherscan.io"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontSize: 10,
+                color: 'var(--yellow)',
+                fontFamily: 'DM Mono, monospace',
+                letterSpacing: '1px',
+                textDecoration: 'none',
+                border: '1px solid #3A3A00',
+                padding: '4px 10px',
+                marginTop: 4,
+              }}
+            >VIEW ON ETHERSCAN ↗</a>
           </div>
         )}
 
@@ -251,33 +262,15 @@ export default function Visualizer({ proving, qualified }) {
             gap: 8,
             animation: 'fadeIn 0.5s ease',
           }}>
-            <div style={{
-              fontSize: 32,
-              color: '#FF3B3B',
-              fontFamily: 'Syne, sans-serif',
-              fontWeight: 800,
-            }}>✗</div>
-            <div style={{
-              fontSize: 12,
-              color: '#FF3B3B',
-              fontFamily: 'DM Mono, monospace',
-              letterSpacing: '2px',
-            }}>PROOF REJECTED</div>
-            <div style={{
-              fontSize: 10,
-              color: '#555',
-              fontFamily: 'DM Mono, monospace',
-            }}>Threshold not met</div>
+            <div style={{ fontSize: 32, color: '#FF3B3B', fontFamily: 'Syne, sans-serif', fontWeight: 800 }}>✗</div>
+            <div style={{ fontSize: 12, color: '#FF3B3B', fontFamily: 'DM Mono, monospace', letterSpacing: '2px' }}>PROOF REJECTED</div>
+            <div style={{ fontSize: 10, color: '#555', fontFamily: 'DM Mono, monospace' }}>Threshold not met</div>
           </div>
         )}
       </div>
 
       {/* LEGEND */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 8,
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
         {[
           { label: 'Encryption', value: 'TFHE-rs' },
           { label: 'Proof type', value: 'euint32' },
@@ -292,17 +285,8 @@ export default function Visualizer({ proving, qualified }) {
             justifyContent: 'space-between',
             alignItems: 'center',
           }}>
-            <span style={{
-              fontSize: 10,
-              color: '#555',
-              fontFamily: 'DM Mono, monospace',
-              letterSpacing: '0.5px',
-            }}>{item.label}</span>
-            <span style={{
-              fontSize: 11,
-              color: 'var(--yellow)',
-              fontFamily: 'DM Mono, monospace',
-            }}>{item.value}</span>
+            <span style={{ fontSize: 10, color: '#555', fontFamily: 'DM Mono, monospace' }}>{item.label}</span>
+            <span style={{ fontSize: 11, color: 'var(--yellow)', fontFamily: 'DM Mono, monospace' }}>{item.value}</span>
           </div>
         ))}
       </div>
