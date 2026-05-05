@@ -29,7 +29,7 @@ export default function Nav() {
       padding: '16px 20px',
       background: scrolled ? 'rgba(10,10,10,0.95)' : 'var(--black)',
       backdropFilter: 'blur(12px)',
-      borderBottom: '1px solid var(--border, #2A2A2A)',
+      borderBottom: '1px solid #2A2A2A',
       transition: 'background 0.3s ease',
     }}>
 
@@ -63,15 +63,31 @@ export default function Nav() {
 
       {/* RIGHT */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{
-          fontSize: 10,
-          color: 'var(--yellow)',
-          border: '1px solid var(--yellow)',
-          padding: '2px 8px',
-          letterSpacing: '1px',
-          opacity: 0.8,
-          fontFamily: 'DM Mono, monospace',
-        }}>SEPOLIA</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <span style={{
+            fontSize: 10,
+            color: 'var(--yellow)',
+            border: '1px solid var(--yellow)',
+            padding: '2px 8px',
+            letterSpacing: '1px',
+            opacity: 0.8,
+            fontFamily: 'DM Mono, monospace',
+          }}>SEPOLIA</span>
+          <a
+            href="https://sepolia.etherscan.io/address/0x4f3a7e2b1c8d5f9a3e6b0c4d7f1a2e5b8c9d0e1c"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontSize: 9,
+              color: '#444',
+              fontFamily: 'DM Mono, monospace',
+              letterSpacing: '0.5px',
+              textDecoration: 'none',
+            }}
+            onMouseOver={e => e.currentTarget.style.color = 'var(--yellow)'}
+            onMouseOut={e => e.currentTarget.style.color = '#444'}
+          >0x4f3a...e1c ↗</a>
+        </div>
 
         <button
           onClick={() => isConnected ? disconnect() : connect({ connector: injected() })}
