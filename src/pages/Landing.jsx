@@ -79,9 +79,10 @@ export default function Landing() {
           marginBottom: 36,
           fontFamily: 'DM Mono, monospace',
         }}>
-          Income verified onchain via FHE.
-          No salary disclosed. No employer revealed.
-          No wallet linked to your identity.
+          Income threshold verified onchain via FHE.
+          Your encrypted value is compared against
+          a threshold — the result is a boolean.
+          No salary value is ever decrypted or stored.
         </p>
 
         {/* STATS */}
