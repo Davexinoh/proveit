@@ -1,10 +1,11 @@
+import { Routes, Route } from 'react-router-dom'
 import { useState } from 'react'
 import Nav from './components/Nav'
-import Hero from './components/Hero'
-import Tiers from './components/Tiers'
-import Simulator from './components/Simulator'
-import Visualizer from './components/Visualizer'
-import Footer from './components/Footer'
+import BottomNav from './components/BottomNav'
+import Landing from './pages/Landing'
+import TiersPage from './pages/TiersPage'
+import SimulatorPage from './pages/SimulatorPage'
+import VisualizerPage from './pages/VisualizerPage'
 
 export default function App() {
   const [qualified, setQualified] = useState(null)
@@ -12,19 +13,31 @@ export default function App() {
   const [proving, setProving] = useState(false)
 
   return (
-    <div style={{ position: 'relative', minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh', paddingBottom: '72px' }}>
       <Nav />
-      <Hero />
-      <Tiers activeTier={activeTier} />
-      <Simulator
-        setQualified={setQualified}
-        setActiveTier={setActiveTier}
-        proving={proving}
-        setProving={setProving}
-        qualified={qualified}
-      />
-      <Visualizer proving={proving} qualified={qualified} />
-      <Footer />
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/tiers" element={<TiersPage activeTier={activeTier} />} />
+        <Route
+          path="/simulator"
+          element={
+            <SimulatorPage
+              setQualified={setQualified}
+              setActiveTier={setActiveTier}
+              proving={proving}
+              setProving={setProving}
+              qualified={qualified}
+            />
+          }
+        />
+        <Route
+          path="/visualizer"
+          element={
+            <VisualizerPage proving={proving} qualified={qualified} />
+          }
+        />
+      </Routes>
+      <BottomNav />
     </div>
   )
 }
