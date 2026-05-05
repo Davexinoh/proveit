@@ -47,9 +47,11 @@ export default function SimulatorPage({
           fontFamily: 'DM Mono, monospace',
           lineHeight: 1.7,
         }}>
-          Enter any income value. Watch the FHE
-          proof run step by step. See which tier
-          you unlock. Nothing leaves your browser unencrypted.
+          Enter any income value. The FHE contract
+          compares your encrypted input against each
+          tier threshold. Only a boolean result is
+          returned — qualified or not. Your value
+          is never decrypted.
         </p>
       </div>
 
