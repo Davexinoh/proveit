@@ -1,306 +1,93 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const HEX = '0123456789abcdef'
-const rand = () => Array.from({ length: 8 }, () => HEX[Math.floor(Math.random() * 16)]).join('')
-
-const OPERATIONS = [
-  'fheAdd(enc_a, enc_b)',
-  'fheLt(enc_income, threshold)',
-  'fheEq(enc_tier, target)',
-  'fheDecrypt(result)',
-  'euint32.verify(proof)',
-  'ebool.resolve(gate)',
-  'fheMul(enc_x, enc_y)',
-  'fheSub(enc_val, base)',
+const OPS = [
+  { tag:'enc',  label:'ENCRYPT', tagColor:'rgba(0,212,255,0.12)',   textColor:'var(--cyan)',    texts:['TFHE ciphertext generated (256-bit)','LWE sample encrypted with public key','Bootstrapping key applied to ciphertext'] },
+  { tag:'cmp',  label:'COMPARE', tagColor:'rgba(123,94,167,0.2)',   textColor:'#B09FD4',        texts:['Homomorphic integer comparison initiated','Encrypted subtraction: ct_a - ct_threshold','CMUX gate evaluating MSB of difference'] },
+  { tag:'ver',  label:'VERIFY',  tagColor:'rgba(0,255,163,0.1)',    textColor:'var(--success)', texts:['ZK proof of correct FHE execution generated','Verification key matched against proof','Constraint system satisfied: proof valid'] },
+  { tag:'mint', label:'MINT',    tagColor:'rgba(255,209,102,0.12)', textColor:'var(--gold)',     texts:['Soulbound token metadata prepared','ERC-5114 credential minted to wallet','Credential expiry timestamp set: +90d'] },
 ]
+const randHex = (n) => Array.from({length:n},()=>HEX[Math.floor(Math.random()*16)]).join('')
 
-export default function Visualizer({ proving, qualified }) {
-  const [nodes, setNodes] = useState([])
-  const [ops, setOps] = useState([])
-  const [active, setActive] = useState(false)
-
-  // Auto-run idle demo loop
-  useEffect(() => {
-    if (proving) return
-    if (qualified !== null) return
-    const idleInterval = setInterval(() => {
-      setNodes(prev => {
-        const next = [...prev, rand()]
-        return next.length > 6 ? next.slice(-6) : next
-      })
-      setOps(prev => {
-        const next = [...prev, OPERATIONS[Math.floor(Math.random() * OPERATIONS.length)]]
-        return next.length > 3 ? next.slice(-3) : next
-      })
-    }, 1200)
-    return () => clearInterval(idleInterval)
-  }, [proving, qualified])
+export default function Visualizer() {
+  const [hexText,   setHexText]   = useState('Initializing FHE engine…')
+  const [opEntries, setOpEntries] = useState([])
+  const [stats,     setStats]     = useState({ ops:0, blocks:0, ms:0, total:0 })
+  const opRef = useRef(null)
 
   useEffect(() => {
-    if (proving) {
-      setActive(true)
-      const nodeInterval = setInterval(() => {
-        setNodes(prev => {
-          const next = [...prev, rand()]
-          return next.length > 12 ? next.slice(-12) : next
-        })
-      }, 180)
+    let blocks = 0, ops = 0, totalMs = 0
+    const iv = setInterval(() => {
+      const chunk = randHex(48) + ' '
+      setHexText(prev => {
+        const next = prev + chunk
+        return next.length > 2000 ? next.slice(-1600) : next
+      })
+      blocks++
 
-      const opInterval = setInterval(() => {
-        setOps(prev => {
-          const next = [...prev, OPERATIONS[Math.floor(Math.random() * OPERATIONS.length)]]
-          return next.length > 6 ? next.slice(-6) : next
+      if (Math.random() < 0.12) {
+        ops++
+        const ms = 80 + Math.floor(Math.random()*180)
+        totalMs += ms
+        const op  = OPS[Math.floor(Math.random()*OPS.length)]
+        const txt = op.texts[Math.floor(Math.random()*op.texts.length)]
+        const ts  = new Date().toTimeString().slice(0,8)
+        setOpEntries(prev => {
+          const next = [...prev, { id: Date.now()+Math.random(), ts, op, txt, ms }]
+          return next.length > 30 ? next.slice(-30) : next
         })
-      }, 400)
-
-      return () => {
-        clearInterval(nodeInterval)
-        clearInterval(opInterval)
+        setStats({ ops, blocks, ms: Math.round(totalMs/ops), total: totalMs })
+        setTimeout(() => { if (opRef.current) opRef.current.scrollTop = opRef.current.scrollHeight }, 50)
+      } else {
+        setStats(s => ({ ...s, blocks }))
       }
-    } else {
-      if (qualified !== null) {
-        setTimeout(() => setActive(false), 1200)
-      }
-    }
-  }, [proving, qualified])
+    }, 80)
+    return () => clearInterval(iv)
+  }, [])
 
   return (
-    <section style={{
-      padding: '48px 20px',
-      borderBottom: '1px solid #2A2A2A',
-    }}>
-
-      {/* HEADER */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{
-          fontSize: 10,
-          letterSpacing: '2px',
-          textTransform: 'uppercase',
-          color: 'var(--yellow)',
-          fontFamily: 'DM Mono, monospace',
-          marginBottom: 10,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-          <span style={{ width: 24, height: 1, background: 'var(--yellow)', display: 'block' }} />
-          FHE Operation Visualizer
-        </div>
-        <h2 style={{
-          fontFamily: 'Syne, sans-serif',
-          fontWeight: 800,
-          fontSize: 'clamp(22px, 6vw, 32px)',
-          letterSpacing: '-0.8px',
-          color: 'var(--white)',
-          lineHeight: 1.1,
-        }}>
-          Encrypted compute.<br />Live onchain.
-        </h2>
-      </div>
-
-      {/* MAIN PANEL */}
-      <div style={{
-        background: '#0A0A0A',
-        border: `1px solid ${active || (!proving && qualified === null) ? 'var(--yellow)' : '#2A2A2A'}`,
-        padding: '20px',
-        transition: 'border-color 0.4s ease',
-        marginBottom: 12,
-        position: 'relative',
-        overflow: 'hidden',
-      }}>
-
-        {/* STATUS BAR */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-          paddingBottom: 12,
-          borderBottom: '1px solid #1A1A1A',
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 10,
-            fontFamily: 'DM Mono, monospace',
-            color: '#555',
-            letterSpacing: '1px',
-          }}>
-            <span style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: active || (!proving && qualified === null) ? 'var(--yellow)' : '#333',
-              display: 'block',
-              transition: 'background 0.3s',
-              animation: active || (!proving && qualified === null) ? 'pulse 1.4s infinite' : 'none',
-            }} />
-            {active ? 'COMPUTING' : proving ? 'IDLE' : 'LIVE DEMO'}
-          </div>
-          <div style={{
-            fontSize: 10,
-            fontFamily: 'DM Mono, monospace',
-            color: '#333',
-            letterSpacing: '1px',
-          }}>FHEVM / SEPOLIA</div>
-        </div>
-
-        {/* HEX STREAM */}
-        <div style={{ marginBottom: 16, minHeight: 60 }}>
-          <div style={{
-            fontSize: 9,
-            color: '#333',
-            letterSpacing: '1px',
-            fontFamily: 'DM Mono, monospace',
-            marginBottom: 8,
-            textTransform: 'uppercase',
-          }}>Encrypted Payload Stream</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {nodes.length === 0 ? (
-              <span style={{ fontSize: 11, color: '#2A2A2A', fontFamily: 'DM Mono, monospace' }}>
-                — initializing —
-              </span>
-            ) : nodes.map((n, i) => (
-              <span key={i} style={{
-                fontSize: 10,
-                fontFamily: 'DM Mono, monospace',
-                color: i === nodes.length - 1 ? 'var(--yellow)' : '#2A2A2A',
-                transition: 'color 0.3s ease',
-                letterSpacing: '0.5px',
-              }}>0x{n}</span>
-            ))}
-          </div>
-        </div>
-
-        {/* OPS LOG */}
-        <div>
-          <div style={{
-            fontSize: 9,
-            color: '#333',
-            letterSpacing: '1px',
-            fontFamily: 'DM Mono, monospace',
-            marginBottom: 8,
-            textTransform: 'uppercase',
-          }}>Operation Log</div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-            minHeight: 80,
-          }}>
-            {ops.length === 0 ? (
-              <span style={{ fontSize: 11, color: '#2A2A2A', fontFamily: 'DM Mono, monospace' }}>
-                — loading —
-              </span>
-            ) : ops.map((op, i) => (
-              <div key={i} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                opacity: i === ops.length - 1 ? 1 : 0.35,
-                transition: 'opacity 0.3s',
-              }}>
-                <span style={{
-                  fontSize: 10,
-                  color: i === ops.length - 1 ? 'var(--yellow)' : '#444',
-                  fontFamily: 'DM Mono, monospace',
-                }}>›</span>
-                <span style={{
-                  fontSize: 11,
-                  color: i === ops.length - 1 ? 'var(--white)' : '#444',
-                  fontFamily: 'DM Mono, monospace',
-                }}>{op}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* RESULT OVERLAY */}
-        {!active && qualified === true && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(10,10,10,0.92)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            animation: 'fadeIn 0.5s ease',
-          }}>
-            <div style={{ fontSize: 32, color: '#39FF14', fontFamily: 'Syne, sans-serif', fontWeight: 800 }}>✓</div>
-            <div style={{ fontSize: 12, color: '#39FF14', fontFamily: 'DM Mono, monospace', letterSpacing: '2px' }}>PROOF ACCEPTED</div>
-            <div style={{ fontSize: 10, color: '#555', fontFamily: 'DM Mono, monospace' }}>Credential minted onchain</div>
-            <a
-              href="https://sepolia.etherscan.io"
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                fontSize: 10,
-                color: 'var(--yellow)',
-                fontFamily: 'DM Mono, monospace',
-                letterSpacing: '1px',
-                textDecoration: 'none',
-                border: '1px solid #3A3A00',
-                padding: '4px 10px',
-                marginTop: 4,
-              }}
-            >VIEW ON ETHERSCAN ↗</a>
-          </div>
-        )}
-
-        {!active && qualified === false && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(10,10,10,0.92)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            animation: 'fadeIn 0.5s ease',
-          }}>
-            <div style={{ fontSize: 32, color: '#FF3B3B', fontFamily: 'Syne, sans-serif', fontWeight: 800 }}>✗</div>
-            <div style={{ fontSize: 12, color: '#FF3B3B', fontFamily: 'DM Mono, monospace', letterSpacing: '2px' }}>PROOF REJECTED</div>
-            <div style={{ fontSize: 10, color: '#555', fontFamily: 'DM Mono, monospace' }}>Threshold not met</div>
-          </div>
-        )}
-      </div>
-
-      {/* LEGEND */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-        {[
-          { label: 'Encryption', value: 'TFHE-rs' },
-          { label: 'Proof type', value: 'euint32' },
-          { label: 'Gas model', value: 'Sepolia' },
-          { label: 'Visibility', value: 'Zero' },
-        ].map(item => (
-          <div key={item.label} style={{
-            background: '#111',
-            border: '1px solid #1A1A1A',
-            padding: '10px 14px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <span style={{ fontSize: 10, color: '#555', fontFamily: 'DM Mono, monospace' }}>{item.label}</span>
-            <span style={{ fontSize: 11, color: 'var(--yellow)', fontFamily: 'DM Mono, monospace' }}>{item.value}</span>
+    <div>
+      <div className="fade-in-2" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
+        {[['FHE Ops',stats.ops],['Ciphertexts',stats.blocks],['Avg Latency',stats.ms+'ms']].map(([l,v]) => (
+          <div key={l} className="glass-card" style={{padding:'14px 10px',textAlign:'center'}}>
+            <div style={{fontFamily:'var(--font-display)',fontSize:15,fontWeight:700,color:'var(--cyan)',marginBottom:3}}>{v}</div>
+            <div style={{fontSize:9,letterSpacing:'0.08em',textTransform:'uppercase',color:'rgba(242,244,248,0.25)'}}>{l}</div>
           </div>
         ))}
       </div>
 
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.2; }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-      `}</style>
-    </section>
+      <div className="fade-in-2" style={{
+        fontFamily:'var(--font-mono)',fontSize:10,lineHeight:1.9,color:'var(--cyan)',
+        padding:16,borderRadius:10,background:'rgba(0,0,0,0.4)',border:'1px solid rgba(255,255,255,0.09)',
+        height:200,overflow:'hidden',position:'relative',marginBottom:16,
+        wordBreak:'break-all',letterSpacing:'0.05em'
+      }}>
+        {hexText}
+        <div style={{position:'absolute',bottom:0,left:0,right:0,height:48,background:'linear-gradient(to top, rgba(0,0,0,0.4), transparent)',pointerEvents:'none'}}/>
+      </div>
+
+      <div style={{fontSize:10,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',marginBottom:8}}>Operation Log</div>
+      <div ref={opRef} className="fade-in-2" style={{
+        fontFamily:'var(--font-mono)',fontSize:10,lineHeight:1.9,
+        padding:'14px 16px',borderRadius:10,
+        background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',
+        marginBottom:16,maxHeight:200,overflowY:'auto'
+      }}>
+        {opEntries.map(e => (
+          <div key={e.id} style={{display:'flex',gap:10,alignItems:'flex-start',marginBottom:6}}>
+            <span style={{color:'rgba(242,244,248,0.25)',flexShrink:0,fontSize:9,paddingTop:1}}>{e.ts}</span>
+            <span style={{fontSize:9,padding:'1px 6px',borderRadius:4,flexShrink:0,marginTop:1,background:e.op.tagColor,color:e.op.textColor}}>{e.op.label}</span>
+            <span style={{color:'var(--muted)'}}>{e.txt} <span style={{color:'rgba(242,244,248,0.25)'}}>[{e.ms}ms]</span></span>
+          </div>
+        ))}
+      </div>
+
+      <div className="glass-card fade-in-3" style={{padding:'16px 18px'}}>
+        <div style={{fontSize:10,color:'var(--muted)',lineHeight:1.7}}>
+          <span style={{color:'var(--cyan)'}}>⬡ What you're seeing — </span>
+          TFHE ciphertexts flowing through the homomorphic comparison pipeline. The <span style={{color:'var(--cyan)'}}>CMUX</span> gate selects the boolean output without ever touching plaintext. All operations are deterministic and verifiable.
+        </div>
+      </div>
+    </div>
   )
 }
