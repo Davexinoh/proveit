@@ -1,327 +1,211 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
-const TIERS = [
-  { id: 'bronze', min: 30000, max: 59999, label: 'Bronze Access', apy: '4.2%' },
-  { id: 'silver', min: 60000, max: 99999, label: 'Silver Access', apy: '8.7%' },
-  { id: 'gold', min: 100000, max: Infinity, label: 'Gold Access', apy: '14.5%' },
-]
+const LIFECYCLE = ['Connect','Input','Prove','Verify','Unlock']
 
-const STEPS = [
-  'Encrypting income value with FHEVM...',
-  'Submitting encrypted proof onchain...',
-  'Running FHE threshold comparison...',
-  'Verifying homomorphic result...',
-  'Minting soulbound credential...',
-]
+function getTier(v) {
+  if (v >= 100000) return { label:'Gold',   color:'var(--gold)',   apy:'14.5%', cls:'gold-active' }
+  if (v >= 60000)  return { label:'Silver', color:'var(--silver)', apy:'8.7%',  cls:'silver-active' }
+  if (v >= 30000)  return { label:'Bronze', color:'var(--bronze)', apy:'4.2%',  cls:'bronze-active' }
+  return null
+}
 
-export default function Simulator({
-  setQualified,
-  setActiveTier,
-  proving,
-  setProving,
-  qualified,
-}) {
-  const [income, setIncome] = useState('')
-  const [step, setStep] = useState(-1)
-  const [result, setResult] = useState(null)
+export default function Simulator() {
+  const [income,  setIncome]  = useState('')
+  const [steps,   setSteps]   = useState([]) // 0=idle 1=active 2=done per step
+  const [logs,    setLogs]    = useState([])
+  const [result,  setResult]  = useState(null)
+  const [running, setRunning] = useState(false)
+  const logRef = useRef(null)
 
-  const runProof = () => {
-    const val = parseInt(income.replace(/,/g, ''))
-    if (!val || val < 1000) return
+  const v    = parseInt(income) || 0
+  const tier = getTier(v)
+  const pct  = Math.min((v / 200000) * 100, 100)
 
-    setProving(true)
-    setResult(null)
-    setQualified(null)
-    setActiveTier(null)
-    setStep(0)
-
-    let current = 0
-    const interval = setInterval(() => {
-      current += 1
-      if (current < STEPS.length) {
-        setStep(current)
-      } else {
-        clearInterval(interval)
-        const tier = TIERS.find(t => val >= t.min && val <= t.max) || null
-        setResult(tier)
-        setQualified(!!tier)
-        setActiveTier(tier?.id || null)
-        setProving(false)
-        setStep(-1)
-      }
-    }, 900)
+  function addLog(tag, msg) {
+    const ts = new Date().toTimeString().slice(0,8)
+    setLogs(l => [...l, { ts, tag, msg, id: Date.now() + Math.random() }])
+    setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight }, 50)
   }
 
-  const formatIncome = (val) => {
-    const raw = val.replace(/[^0-9]/g, '')
-    if (!raw) return ''
-    return parseInt(raw).toLocaleString()
+  function setStep(idx, state) {
+    setSteps(prev => {
+      const next = [...prev]
+      next[idx] = state
+      return next
+    })
+  }
+
+  async function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
+
+  async function runProof() {
+    if (running) return
+    setRunning(true)
+    setLogs([])
+    setResult(null)
+    setSteps([2,1,0,0,0])
+
+    const timeline = [
+      { ms:400,  tag:'info', msg:'Client-side TFHE encryption initiated', si:1, sn:2 },
+      { ms:500,  tag:'info', msg:`Plaintext value → ciphertext (256-bit LWE sample)`, si:1 },
+      { ms:600,  tag:'info', msg:'Ciphertext submitted to FHEVM contract', si:2, sn:1 },
+      { ms:700,  tag:'info', msg:'Homomorphic comparison executing onchain…', si:2 },
+      { ms:600,  tag:'info', msg:'CMUX gate evaluating encrypted boolean', si:3, sn:1 },
+      { ms:600,  tag: v >= 30000 ? 'ok':'warn', msg: v >= 30000 ? 'Boolean result: TRUE (threshold met)' : 'Boolean result: FALSE (threshold not met)', si:3 },
+      { ms:500,  tag:'info', msg:'Proof verification complete', si:4, sn:1 },
+    ]
+
+    for (const step of timeline) {
+      await delay(step.ms)
+      addLog(step.tag, step.msg)
+      if (step.si !== undefined) setStep(step.si, 2)
+      if (step.sn !== undefined) setStep(step.sn, 1)
+    }
+
+    await delay(400)
+    setStep(4, 2)
+    setResult({ qualified: v >= 30000, tier: getTier(v) })
+    setRunning(false)
+  }
+
+  const stepColor = (i) => {
+    const s = steps[i]
+    if (s === 2) return { border:'var(--success)', color:'var(--success)', bg:'rgba(0,255,163,0.12)' }
+    if (s === 1) return { border:'var(--cyan)',    color:'var(--cyan)',    bg:'rgba(0,212,255,0.12)' }
+    return { border:'rgba(255,255,255,0.09)', color:'rgba(242,244,248,0.25)', bg:'rgba(255,255,255,0.04)' }
   }
 
   return (
-    <section id="simulator" style={{
-      padding: '48px 20px',
-      borderBottom: '1px solid #2A2A2A',
-    }}>
-
-      {/* HEADER */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{
-          fontSize: 10,
-          letterSpacing: '2px',
-          textTransform: 'uppercase',
-          color: 'var(--yellow)',
-          fontFamily: 'DM Mono, monospace',
-          marginBottom: 10,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-          <span style={{ width: 24, height: 1, background: 'var(--yellow)', display: 'block' }} />
-          Proof Simulator
-        </div>
-        <h2 style={{
-          fontFamily: 'Syne, sans-serif',
-          fontWeight: 800,
-          fontSize: 'clamp(22px, 6vw, 32px)',
-          letterSpacing: '-0.8px',
-          color: 'var(--white)',
-          lineHeight: 1.1,
-        }}>
-          Test the proof.<br />No real data needed.
-        </h2>
-        <p style={{
-          fontSize: 12,
-          color: '#666',
-          marginTop: 10,
-          fontFamily: 'DM Mono, monospace',
-          lineHeight: 1.7,
-        }}>
-          Enter any income value. Watch the FHE proof run.
-          See which tier you unlock. Nothing leaves your browser unencrypted.
-        </p>
-      </div>
-
-      {/* INPUT */}
-      <div style={{
-        background: '#111',
-        border: '1px solid #2A2A2A',
-        padding: '20px',
-        marginBottom: 16,
-      }}>
-        <div style={{
-          fontSize: 10,
-          color: '#555',
-          letterSpacing: '1.5px',
-          textTransform: 'uppercase',
-          fontFamily: 'DM Mono, monospace',
-          marginBottom: 10,
-        }}>Annual Income (USD)</div>
-
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 0,
-          border: '1px solid #2A2A2A',
-          background: '#0A0A0A',
-          overflow: 'hidden',
-        }}>
-          <span style={{
-            padding: '12px 14px',
-            fontSize: 16,
-            color: 'var(--yellow)',
-            fontFamily: 'Syne, sans-serif',
-            fontWeight: 700,
-            borderRight: '1px solid #2A2A2A',
-          }}>$</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder="0"
-            value={income}
-            onChange={e => setIncome(formatIncome(e.target.value))}
-            disabled={proving}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: 'var(--white)',
-              fontSize: 18,
-              fontFamily: 'Syne, sans-serif',
-              fontWeight: 700,
-              padding: '12px 14px',
-              letterSpacing: '-0.5px',
-            }}
-          />
-        </div>
-
-        <div style={{
-          display: 'flex',
-          gap: 8,
-          marginTop: 12,
-          flexWrap: 'wrap',
-        }}>
-          {['30,000', '60,000', '100,000'].map(val => (
-            <button
-              key={val}
-              onClick={() => setIncome(val)}
-              disabled={proving}
-              style={{
-                background: 'transparent',
-                border: '1px solid #2A2A2A',
-                color: '#666',
-                padding: '4px 10px',
-                fontSize: 11,
-                fontFamily: 'DM Mono, monospace',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-              onMouseOver={e => {
-                e.currentTarget.style.borderColor = 'var(--yellow)'
-                e.currentTarget.style.color = 'var(--yellow)'
-              }}
-              onMouseOut={e => {
-                e.currentTarget.style.borderColor = '#2A2A2A'
-                e.currentTarget.style.color = '#666'
-              }}
-            >${val}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* PROOF STEPS */}
-      {proving && (
-        <div style={{
-          background: '#111',
-          border: '1px solid #2A2A2A',
-          padding: '20px',
-          marginBottom: 16,
-        }}>
-          {STEPS.map((s, i) => (
-            <div key={i} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '7px 0',
-              borderBottom: i < STEPS.length - 1 ? '1px solid #1A1A1A' : 'none',
-            }}>
+    <div>
+      {/* Lifecycle */}
+      <div className="fade-in-2" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:24,gap:4}}>
+        {LIFECYCLE.map((lbl, i) => {
+          const c = stepColor(i)
+          return (
+            <div key={lbl} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,flex:1}}>
+              {i > 0 && <div style={{height:1,background: steps[i-1]===2?'rgba(0,255,163,0.4)':'rgba(255,255,255,0.09)',width:'100%',marginBottom:-22,zIndex:0}}/>}
               <div style={{
-                width: 18,
-                height: 18,
-                border: `1px solid ${i < step ? 'var(--success, #39FF14)' : i === step ? 'var(--yellow)' : '#333'}`,
-                background: i < step ? 'var(--success, #39FF14)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                transition: 'all 0.3s ease',
+                width:28,height:28,borderRadius:'50%',border:`1.5px solid ${c.border}`,
+                background:c.bg,display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:10,color:c.color,position:'relative',zIndex:1,transition:'all 0.4s'
               }}>
-                {i < step && (
-                  <span style={{ fontSize: 9, color: '#0A0A0A', fontWeight: 700 }}>✓</span>
-                )}
-                {i === step && (
-                  <span style={{
-                    width: 6,
-                    height: 6,
-                    background: 'var(--yellow)',
-                    display: 'block',
-                    animation: 'pulse 0.8s infinite',
-                  }} />
-                )}
+                {steps[i]===2?'✓':i+1}
               </div>
-              <span style={{
-                fontSize: 11,
-                fontFamily: 'DM Mono, monospace',
-                color: i < step ? '#39FF14' : i === step ? 'var(--yellow)' : '#444',
-                transition: 'color 0.3s ease',
-              }}>{s}</span>
+              <div style={{fontSize:8,letterSpacing:'0.06em',textTransform:'uppercase',color:steps[i]===1?'var(--cyan)':'rgba(242,244,248,0.25)',textAlign:'center'}}>{lbl}</div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Input */}
+      <div className="fade-in-2" style={{marginBottom:16}}>
+        <label style={{fontSize:10,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',marginBottom:8,display:'block'}}>Annual Income (USD)</label>
+        <input
+          type="number" value={income} min="0" max="500000"
+          onChange={e => setIncome(e.target.value)}
+          placeholder="e.g. 75000"
+          style={{
+            width:'100%',padding:'14px 16px',borderRadius:10,
+            background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',
+            color:'var(--white)',fontFamily:'var(--font-mono)',fontSize:18,fontWeight:500,
+            outline:'none',transition:'border-color 0.2s'
+          }}
+          onFocus={e => e.target.style.borderColor='rgba(0,212,255,0.5)'}
+          onBlur={e  => e.target.style.borderColor='rgba(255,255,255,0.09)'}
+        />
+      </div>
+
+      {/* Slider */}
+      <div className="fade-in-2" style={{marginBottom:20}}>
+        <input type="range" min="0" max="200000" step="1000"
+          value={Math.min(v,200000)}
+          style={{'--pct': pct+'%'}}
+          onChange={e => setIncome(e.target.value)}
+        />
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'rgba(242,244,248,0.25)',marginTop:6}}>
+          {['$0','$50k','$100k','$150k','$200k'].map(l => <span key={l}>{l}</span>)}
+        </div>
+      </div>
+
+      {/* Tier preview */}
+      <div className="fade-in-2" style={{
+        display:'flex',alignItems:'center',gap:10,padding:'14px 16px',
+        borderRadius:10,marginBottom:20,transition:'all 0.3s',
+        background: tier ? `${tier.color.replace('var(--gold)','rgba(255,209,102').replace('var(--silver)','rgba(184,192,204').replace('var(--bronze)','rgba(199,123,58')}0.06)` : 'rgba(255,255,255,0.04)',
+        border:`1px solid ${tier ? tier.color.replace('var(--gold)','rgba(255,209,102,0.3)').replace('var(--silver)','rgba(184,192,204,0.3)').replace('var(--bronze)','rgba(199,123,58,0.3)') : 'rgba(255,255,255,0.09)'}`
+      }}>
+        <div style={{fontSize:22}}>{tier ? '◈' : '—'}</div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,color:tier?.color||'var(--muted)'}}>
+            {tier ? `${tier.label.toUpperCase()} TIER` : 'No tier'}
+          </div>
+          <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>
+            {tier ? `Qualifies at ${tier.label.toLowerCase()} threshold` : 'Enter income above $30,000'}
+          </div>
+        </div>
+        <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:20,color:tier?.color||'rgba(242,244,248,0.25)'}}>
+          {tier?.apy || '—'}
+        </div>
+      </div>
+
+      <button className="btn-primary fade-in-3" onClick={runProof} disabled={running} style={{marginBottom:16}}>
+        {running ? 'RUNNING…' : 'RUN PROOF ›'}
+      </button>
+
+      {/* Log */}
+      {logs.length > 0 && (
+        <div ref={logRef} style={{
+          padding:'14px 16px',borderRadius:10,marginBottom:16,
+          background:'rgba(0,0,0,0.35)',border:'1px solid rgba(255,255,255,0.09)',
+          fontSize:11,color:'var(--muted)',minHeight:90,lineHeight:1.8,
+          fontFamily:'var(--font-mono)',maxHeight:160,overflowY:'auto'
+        }}>
+          {logs.map(l => (
+            <div key={l.id} style={{animation:'fadeUp 0.3s ease'}}>
+              <span style={{color:'rgba(242,244,248,0.25)',marginRight:8}}>{l.ts}</span>
+              <span style={{color: l.tag==='ok'?'var(--success)': l.tag==='warn'?'var(--gold)':'var(--cyan)'}}>{l.msg}</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* RESULT */}
-      {!proving && result !== undefined && result !== null && qualified && (
+      {/* Result */}
+      {result && (
         <div style={{
-          background: 'rgba(57,255,20,0.04)',
-          border: '1px solid #39FF14',
-          padding: '20px',
-          marginBottom: 16,
+          padding:20,borderRadius:'var(--radius)',textAlign:'center',
+          animation:'fadeUp 0.4s ease',
+          background: result.qualified ? 'rgba(0,255,163,0.07)' : 'rgba(255,77,109,0.07)',
+          border:`1px solid ${result.qualified ? 'rgba(0,255,163,0.25)' : 'rgba(255,77,109,0.25)'}`
         }}>
-          <div style={{
-            fontSize: 10,
-            color: '#39FF14',
-            letterSpacing: '2px',
-            fontFamily: 'DM Mono, monospace',
-            marginBottom: 8,
-          }}>✓ PROOF VERIFIED</div>
-          <div style={{
-            fontFamily: 'Syne, sans-serif',
-            fontWeight: 700,
-            fontSize: 20,
-            color: 'var(--white)',
-            marginBottom: 4,
-          }}>{result.label} Unlocked</div>
-          <div style={{
-            fontSize: 12,
-            color: '#666',
-            fontFamily: 'DM Mono, monospace',
-          }}>
-            APY rate: <span style={{ color: 'var(--yellow)' }}>{result.apy}</span> · Credential minted · Expires in 90 days
+          <div style={{fontSize:32,marginBottom:10}}>{result.qualified ? '✓' : '✗'}</div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:20,fontWeight:800,marginBottom:6}}>
+            {result.qualified ? `${result.tier.label} Tier Access Granted` : 'Threshold Not Met'}
           </div>
+          <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.6}}>
+            {result.qualified
+              ? `Your encrypted income exceeds the ${result.tier.label.toLowerCase()} threshold. A soulbound credential has been minted. No salary data was revealed.`
+              : 'Your encrypted income does not cross the minimum $30,000 threshold. No data was disclosed.'}
+          </div>
+          {result.qualified && (
+            <>
+              <a href="https://sepolia.etherscan.io/tx/0x4f3a9b2c8d1e5f7a0b3c6d9e2f5a8b1c4d7e0f3"
+                target="_blank" rel="noreferrer"
+                style={{display:'inline-block',marginTop:12,fontSize:10,color:'var(--cyan)',
+                  border:'1px solid rgba(0,212,255,0.3)',padding:'5px 12px',borderRadius:6,textDecoration:'none'}}>
+                View on Etherscan ↗
+              </a>
+              <div style={{display:'flex',alignItems:'center',gap:12,padding:'14px 16px',
+                borderRadius:10,background:'rgba(0,255,163,0.06)',border:'1px solid rgba(0,255,163,0.2)',marginTop:12}}>
+                <div style={{fontSize:22}}>◈</div>
+                <div style={{flex:1,textAlign:'left'}}>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--success)'}}>Soulbound Credential Minted</div>
+                  <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>{result.tier.label} Tier — 90 day credential</div>
+                </div>
+                <div style={{fontSize:9,color:'rgba(242,244,248,0.25)',textAlign:'right'}}>Expires in<br/><strong style={{color:'var(--white)'}}>90 days</strong></div>
+              </div>
+            </>
+          )}
         </div>
       )}
-
-      {!proving && qualified === false && (
-        <div style={{
-          background: 'rgba(255,59,59,0.04)',
-          border: '1px solid var(--error, #FF3B3B)',
-          padding: '20px',
-          marginBottom: 16,
-        }}>
-          <div style={{
-            fontSize: 10,
-            color: '#FF3B3B',
-            letterSpacing: '2px',
-            fontFamily: 'DM Mono, monospace',
-            marginBottom: 8,
-          }}>✗ BELOW MINIMUM THRESHOLD</div>
-          <div style={{
-            fontSize: 12,
-            color: '#666',
-            fontFamily: 'DM Mono, monospace',
-          }}>Minimum income required: $30,000/year</div>
-        </div>
-      )}
-
-      {/* RUN BUTTON */}
-      <button
-        onClick={runProof}
-        disabled={proving || !income}
-        style={{
-          width: '100%',
-          background: proving || !income ? '#1A1A1A' : 'var(--yellow)',
-          color: proving || !income ? '#444' : '#0A0A0A',
-          border: 'none',
-          padding: '16px',
-          fontFamily: 'Syne, sans-serif',
-          fontWeight: 700,
-          fontSize: 14,
-          letterSpacing: '1px',
-          cursor: proving || !income ? 'not-allowed' : 'pointer',
-          transition: 'all 0.2s ease',
-        }}
-      >
-        {proving ? 'RUNNING PROOF...' : 'RUN ENCRYPTED PROOF ➢'}
-      </button>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.2; }
-        }
-      `}</style>
-    </section>
+    </div>
   )
 }
