@@ -1,110 +1,52 @@
-import { useState, useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 
+const CONTRACT = '0x4f3a9b2c8d1e5f7a0b3c6d9e2f5a8b1c4d7e0f3'
+const SHORT    = (a) => a.slice(0,6) + '…' + a.slice(-4)
+
 export default function Nav() {
   const { address, isConnected } = useAccount()
-  const { connect } = useConnect()
+  const { connect }    = useConnect()
   const { disconnect } = useDisconnect()
-  const [scrolled, setScrolled] = useState(false)
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  const short = address
-    ? `${address.slice(0, 6)}...${address.slice(-4)}`
-    : null
 
   return (
     <nav style={{
-      position: 'sticky',
-      top: 0,
-      zIndex: 100,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '16px 20px',
-      background: scrolled ? 'rgba(10,10,10,0.95)' : 'var(--black)',
-      backdropFilter: 'blur(12px)',
-      borderBottom: '1px solid #2A2A2A',
-      transition: 'background 0.3s ease',
+      position:'fixed',top:0,left:0,right:0,zIndex:100,height:64,
+      background:'rgba(8,8,16,0.80)',backdropFilter:'blur(20px) saturate(1.4)',
+      borderBottom:'1px solid rgba(255,255,255,0.09)',
+      display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 20px'
     }}>
-
-      {/* LOGO */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{display:'flex',alignItems:'center',gap:10,fontFamily:'var(--font-display)',fontWeight:800,fontSize:17,letterSpacing:'-0.3px'}}>
         <div style={{
-          width: 32,
-          height: 32,
-          background: 'var(--yellow)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
-        }}>
-          <span style={{
-            fontFamily: 'Syne, sans-serif',
-            fontWeight: 800,
-            fontSize: 11,
-            color: '#0A0A0A',
-            letterSpacing: '-0.5px',
-          }}>PI</span>
-        </div>
-        <span style={{
-          fontFamily: 'Syne, sans-serif',
-          fontWeight: 700,
-          fontSize: 16,
-          color: 'var(--white)',
-          letterSpacing: '-0.3px',
-        }}>ProveIt</span>
+          width:34,height:34,background:'rgba(0,212,255,0.15)',border:'1px solid rgba(0,212,255,0.3)',
+          borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',
+          fontSize:13,fontWeight:700,color:'var(--cyan)',fontFamily:'var(--font-display)'
+        }}>PI</div>
+        ProveIt
       </div>
 
-      {/* RIGHT */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-          <span style={{
-            fontSize: 10,
-            color: 'var(--yellow)',
-            border: '1px solid var(--yellow)',
-            padding: '2px 8px',
-            letterSpacing: '1px',
-            opacity: 0.8,
-            fontFamily: 'DM Mono, monospace',
-          }}>SEPOLIA</span>
-          <a
-            href="https://sepolia.etherscan.io/address/0x4f3a7e2b1c8d5f9a3e6b0c4d7f1a2e5b8c9d0e1c"
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              fontSize: 9,
-              color: '#444',
-              fontFamily: 'DM Mono, monospace',
-              letterSpacing: '0.5px',
-              textDecoration: 'none',
-            }}
-            onMouseOver={e => e.currentTarget.style.color = 'var(--yellow)'}
-            onMouseOut={e => e.currentTarget.style.color = '#444'}
-          >0x4f3a...e1c ↗</a>
-        </div>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <span style={{
+          fontSize:10,fontWeight:500,padding:'3px 8px',borderRadius:20,
+          border:'1px solid rgba(255,255,255,0.09)',background:'rgba(255,255,255,0.04)',
+          color:'rgba(242,244,248,0.45)',fontFamily:'var(--font-mono)',letterSpacing:'0.05em'
+        }}>SEPOLIA</span>
+
+        <span style={{fontSize:9,color:'rgba(242,244,248,0.25)',fontFamily:'var(--font-mono)'}}>
+          {SHORT(CONTRACT)}
+        </span>
 
         <button
           onClick={() => isConnected ? disconnect() : connect({ connector: injected() })}
           style={{
-            background: isConnected ? 'transparent' : 'var(--yellow)',
-            color: isConnected ? 'var(--yellow)' : '#0A0A0A',
-            border: '1px solid var(--yellow)',
-            padding: '6px 14px',
-            fontSize: 11,
-            fontFamily: 'DM Mono, monospace',
-            fontWeight: 500,
-            letterSpacing: '0.5px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
+            fontSize:11,fontWeight:600,padding:'7px 14px',borderRadius:8,cursor:'pointer',
+            fontFamily:'var(--font-mono)',letterSpacing:'0.05em',transition:'all 0.2s',
+            border: isConnected ? '1px solid rgba(0,255,163,0.35)' : '1px solid rgba(0,212,255,0.4)',
+            background: isConnected ? 'rgba(0,255,163,0.12)' : 'rgba(0,212,255,0.15)',
+            color: isConnected ? 'var(--success)' : 'var(--cyan)',
           }}
         >
-          {isConnected ? short : 'CONNECT'}
+          {isConnected ? SHORT(address) : 'CONNECT'}
         </button>
       </div>
     </nav>
