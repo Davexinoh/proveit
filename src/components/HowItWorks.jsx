@@ -8,17 +8,17 @@ const STEPS = [
 export default function HowItWorks() {
   return (
     <div style={{marginTop:48}}>
-      <div className="section-header fade-in">
-        <div className="section-eyebrow">Protocol</div>
+      <div className="section-hd fade-in">
+        <div className="eyebrow">Protocol</div>
         <div className="section-title">How it works</div>
       </div>
       <div className="fade-in-2" style={{display:'flex',flexDirection:'column',gap:10}}>
         {STEPS.map(s => (
-          <div key={s.n} className="glass-card" style={{padding:'16px 18px',display:'flex',gap:14,alignItems:'flex-start'}}>
-            <div style={{fontSize:11,color:'var(--cyan)',fontWeight:700,fontFamily:'var(--font-mono)',paddingTop:2,flexShrink:0}}>{s.n}</div>
+          <div key={s.n} className="glass" style={{padding:'16px 18px',display:'flex',gap:14,alignItems:'flex-start',position:'relative'}}>
+            <div style={{fontSize:11,color:'var(--cyan)',fontWeight:700,fontFamily:'var(--font-m)',paddingTop:2,flexShrink:0}}>{s.n}</div>
             <div>
-              <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,marginBottom:4}}>{s.title}</div>
-              <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.6}}>{s.body}</div>
+              <div style={{fontFamily:'var(--font-d)',fontWeight:700,fontSize:14,marginBottom:4}}>{s.title}</div>
+              <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.65}}>{s.body}</div>
             </div>
           </div>
         ))}
