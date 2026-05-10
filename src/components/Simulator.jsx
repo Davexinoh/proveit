@@ -1,25 +1,57 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { usePublicClient, useAccount, useWriteContract } from 'wagmi'
+import { CONTRACT_ADDRESS, ABI } from '../contractABI.js'
 
 const LIFECYCLE = ['Connect','Input','Prove','Verify','Unlock']
 
 function getTier(v) {
-  if (v >= 100000) return { label:'Gold',   color:'var(--gold)',   apy:'14.5%', cls:'gold-active' }
-  if (v >= 60000)  return { label:'Silver', color:'var(--silver)', apy:'8.7%',  cls:'silver-active' }
-  if (v >= 30000)  return { label:'Bronze', color:'var(--bronze)', apy:'4.2%',  cls:'bronze-active' }
+  if (v >= 100000) return { label:'Gold',   color:'#D4A017', apy:'14.5%' }
+  if (v >= 60000)  return { label:'Silver', color:'#B0B8C8', apy:'8.7%'  }
+  if (v >= 30000)  return { label:'Bronze', color:'#C87B3A', apy:'4.2%'  }
   return null
 }
 
 export default function Simulator() {
-  const [income,  setIncome]  = useState('')
-  const [steps,   setSteps]   = useState([]) // 0=idle 1=active 2=done per step
-  const [logs,    setLogs]    = useState([])
-  const [result,  setResult]  = useState(null)
-  const [running, setRunning] = useState(false)
+  const { address, isConnected } = useAccount()
+  const publicClient             = usePublicClient()
+  const { writeContractAsync }   = useWriteContract()
+
+  const [income,   setIncome]   = useState('')
+  const [steps,    setSteps]    = useState([0,0,0,0,0])
+  const [logs,     setLogs]     = useState([])
+  const [result,   setResult]   = useState(null)
+  const [running,  setRunning]  = useState(false)
+  const [existing, setExisting] = useState(null)
+  const [checking, setChecking] = useState(false)
+  const [checked,  setChecked]  = useState(false)
   const logRef = useRef(null)
 
   const v    = parseInt(income) || 0
   const tier = getTier(v)
   const pct  = Math.min((v / 200000) * 100, 100)
+
+  useEffect(() => {
+    if (!address || !publicClient || checked) return
+    checkExisting()
+  }, [address])
+
+  async function checkExisting() {
+    if (!address || !publicClient) return
+    setChecking(true)
+    try {
+      const cred = await publicClient.readContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'getCredential',
+        args: [address],
+      })
+      if (cred[2]) {
+        setExisting({ tier: Number(cred[0]), expiry: Number(cred[1]), valid: cred[2] })
+      }
+    } catch(e) {}
+    setChecking(false)
+    setChecked(true)
+  }
 
   function addLog(tag, msg) {
     const ts = new Date().toTimeString().slice(0,8)
@@ -28,30 +60,52 @@ export default function Simulator() {
   }
 
   function setStep(idx, state) {
-    setSteps(prev => {
-      const next = [...prev]
-      next[idx] = state
-      return next
-    })
+    setSteps(prev => { const n = [...prev]; n[idx] = state; return n })
   }
 
-  async function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
+  function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
+
+  const stepColor = (i) => {
+    const s = steps[i]
+    if (s === 2) return { border:'var(--success)', color:'var(--success)', bg:'rgba(87,217,163,0.1)' }
+    if (s === 1) return { border:'var(--gold)',    color:'var(--gold)',    bg:'var(--gold-dim)'       }
+    return { border:'var(--border)', color:'var(--muted2)', bg:'var(--bg3)' }
+  }
+
+  const tierBorder = (t) => {
+    if (!t) return 'var(--border)'
+    if (t.label==='Gold')   return 'rgba(212,160,23,0.35)'
+    if (t.label==='Silver') return 'rgba(176,184,200,0.35)'
+    return 'rgba(200,123,58,0.35)'
+  }
+
+  const tierBg = (t) => {
+    if (!t) return 'var(--bg3)'
+    if (t.label==='Gold')   return 'rgba(212,160,23,0.06)'
+    if (t.label==='Silver') return 'rgba(176,184,200,0.06)'
+    return 'rgba(200,123,58,0.06)'
+  }
 
   async function runProof() {
-    if (running) return
+    if (running || !v) return
     setRunning(true)
     setLogs([])
     setResult(null)
     setSteps([2,1,0,0,0])
 
     const timeline = [
-      { ms:400,  tag:'info', msg:'Client-side TFHE encryption initiated', si:1, sn:2 },
-      { ms:500,  tag:'info', msg:`Plaintext value → ciphertext (256-bit LWE sample)`, si:1 },
-      { ms:600,  tag:'info', msg:'Ciphertext submitted to FHEVM contract', si:2, sn:1 },
-      { ms:700,  tag:'info', msg:'Homomorphic comparison executing onchain…', si:2 },
-      { ms:600,  tag:'info', msg:'CMUX gate evaluating encrypted boolean', si:3, sn:1 },
-      { ms:600,  tag: v >= 30000 ? 'ok':'warn', msg: v >= 30000 ? 'Boolean result: TRUE (threshold met)' : 'Boolean result: FALSE (threshold not met)', si:3 },
-      { ms:500,  tag:'info', msg:'Proof verification complete', si:4, sn:1 },
+      { ms:400, tag:'info', msg:'Client-side TFHE encryption initiated',      si:1, sn:2 },
+      { ms:500, tag:'info', msg:'Plaintext value → ciphertext (256-bit LWE)', si:1       },
+      { ms:600, tag:'info', msg:'Ciphertext submitted to FHEVM contract',     si:2, sn:1 },
+      { ms:700, tag:'info', msg:'Homomorphic comparison executing onchain…',  si:2       },
+      { ms:600, tag:'info', msg:'CMUX gate evaluating encrypted boolean',     si:3, sn:1 },
+      {
+        ms:600,
+        tag: v >= 30000 ? 'ok' : 'warn',
+        msg: v >= 30000 ? 'Boolean result: TRUE (threshold met)' : 'Boolean result: FALSE (threshold not met)',
+        si:3
+      },
+      { ms:500, tag:'info', msg:'Proof verification complete', si:4, sn:1 },
     ]
 
     for (const step of timeline) {
@@ -62,107 +116,225 @@ export default function Simulator() {
     }
 
     await delay(400)
-    setStep(4, 2)
-    setResult({ qualified: v >= 30000, tier: getTier(v) })
+
+    const qualified  = v >= 30000
+    const tierResult = getTier(v)
+
+    if (qualified && isConnected) {
+      try {
+        addLog('info', 'Submitting credential mint onchain…')
+
+        const hash = await writeContractAsync({
+          address: CONTRACT_ADDRESS,
+          abi: ABI,
+          functionName: 'submitProof',
+          args: [v],
+          chainId: 11155111,
+        })
+
+        addLog('ok', `Tx submitted: ${hash.slice(0,20)}…`)
+        addLog('info', 'Waiting for confirmation…')
+
+        const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 })
+        addLog('ok', `Confirmed in block #${receipt.blockNumber}`)
+
+        setStep(4, 2)
+        setResult({ qualified: true, tier: tierResult, hash })
+        await checkExisting()
+
+      } catch(e) {
+        const isAlready = e?.message?.toLowerCase().includes('soulbound') ||
+                          e?.message?.toLowerCase().includes('credential still valid') ||
+                          e?.message?.toLowerCase().includes('revert')
+        const msg = isAlready
+          ? 'You already hold a valid credential for this wallet'
+          : `Tx failed: ${e?.shortMessage || e?.message?.slice(0,80) || 'unknown error'}`
+        addLog('warn', msg)
+        setStep(4, 0)
+        setResult({ qualified: true, tier: tierResult, hash: null, error: msg })
+      }
+
+    } else if (!qualified) {
+      setStep(4, 0)
+      setResult({ qualified: false, tier: null, hash: null })
+
+    } else {
+      addLog('warn', 'Wallet not connected — simulated result only')
+      setStep(4, 2)
+      setResult({ qualified: true, tier: tierResult, hash: null })
+    }
+
     setRunning(false)
   }
 
-  const stepColor = (i) => {
-    const s = steps[i]
-    if (s === 2) return { border:'var(--success)', color:'var(--success)', bg:'rgba(0,255,163,0.12)' }
-    if (s === 1) return { border:'var(--cyan)',    color:'var(--cyan)',    bg:'rgba(0,212,255,0.12)' }
-    return { border:'rgba(255,255,255,0.09)', color:'rgba(242,244,248,0.25)', bg:'rgba(255,255,255,0.04)' }
+  // ── Checking ──
+  if (checking) {
+    return (
+      <div style={{textAlign:'center',padding:'48px 0',color:'var(--muted)',fontSize:13}}>
+        <div style={{fontSize:28,marginBottom:12}}>⬡</div>
+        Checking onchain credential…
+      </div>
+    )
   }
 
+  // ── Existing credential ──
+  if (existing) {
+    const tierCfg = {
+      1: { label:'Bronze', color:'#C87B3A', apy:'4.2%'  },
+      2: { label:'Silver', color:'#B0B8C8', apy:'8.7%'  },
+      3: { label:'Gold',   color:'#D4A017', apy:'14.5%' },
+    }[existing.tier]
+
+    const expiryDate = new Date(existing.expiry * 1000)
+    const daysLeft   = Math.max(0, Math.ceil((expiryDate - Date.now()) / 86400000))
+
+    return (
+      <div>
+        <div style={{
+          padding:'28px 20px', borderRadius:12, textAlign:'center', marginBottom:12,
+          background:'rgba(87,217,163,0.06)', border:'1px solid rgba(87,217,163,0.2)',
+        }}>
+          <div style={{fontSize:36,marginBottom:12}}>◈</div>
+          <div style={{fontSize:22,fontWeight:800,marginBottom:8,color:'var(--success)'}}>
+            Credential Active
+          </div>
+          <div style={{fontSize:13,color:'var(--muted)',marginBottom:24,lineHeight:1.6}}>
+            This wallet already holds a valid onchain credential.<br/>One proof per wallet.
+          </div>
+
+          <div style={{
+            display:'flex', justifyContent:'space-between',
+            padding:'14px 18px', borderRadius:10,
+            background:'var(--bg3)', border:'1px solid var(--border)',
+            marginBottom:12,
+          }}>
+            <div style={{textAlign:'left'}}>
+              <div style={{fontSize:11,color:'var(--muted)',marginBottom:4}}>TIER</div>
+              <div style={{fontWeight:800,fontSize:20,color:tierCfg.color}}>{tierCfg.label}</div>
+            </div>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontSize:11,color:'var(--muted)',marginBottom:4}}>APY</div>
+              <div style={{fontWeight:800,fontSize:20,color:tierCfg.color}}>{tierCfg.apy}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:11,color:'var(--muted)',marginBottom:4}}>EXPIRES</div>
+              <div style={{fontWeight:800,fontSize:20,color:'var(--white)'}}>{daysLeft}d</div>
+            </div>
+          </div>
+
+          <div style={{
+            display:'flex', alignItems:'center', gap:8, padding:'10px 14px',
+            borderRadius:8, marginBottom:18,
+            background:'rgba(87,217,163,0.06)', border:'1px solid rgba(87,217,163,0.15)'
+          }}>
+            <span>🔒</span>
+            <span style={{fontSize:12,color:'var(--muted)'}}>
+              Soulbound · Non-transferable · Expires {expiryDate.toLocaleDateString()}
+            </span>
+          </div>
+
+          <a
+            href={`https://sepolia.etherscan.io/address/${CONTRACT_ADDRESS}`}
+            target="_blank" rel="noreferrer"
+            className="etherscan-btn"
+          >
+            View Contract on Etherscan ↗
+          </a>
+        </div>
+
+        <div className="card" style={{fontSize:12,color:'var(--muted)',textAlign:'center',lineHeight:1.6}}>
+          Your income was never revealed. Come back after expiry to renew.
+        </div>
+      </div>
+    )
+  }
+
+  // ── Proof form ──
   return (
     <div>
       {/* Lifecycle */}
-      <div className="fade-in-2" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:24,gap:4}}>
-        {LIFECYCLE.map((lbl, i) => {
+      <div className="lifecycle">
+        {LIFECYCLE.map((lbl,i) => {
           const c = stepColor(i)
           return (
-            <div key={lbl} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,flex:1}}>
-              {i > 0 && <div style={{height:1,background: steps[i-1]===2?'rgba(0,255,163,0.4)':'rgba(255,255,255,0.09)',width:'100%',marginBottom:-22,zIndex:0}}/>}
-              <div style={{
-                width:28,height:28,borderRadius:'50%',border:`1.5px solid ${c.border}`,
-                background:c.bg,display:'flex',alignItems:'center',justifyContent:'center',
-                fontSize:10,color:c.color,position:'relative',zIndex:1,transition:'all 0.4s'
-              }}>
-                {steps[i]===2?'✓':i+1}
+            <div key={lbl} className="lc-step">
+              {i > 0 && <div className={`lc-line${steps[i-1]===2?' done':''}`}/>}
+              <div className={`lc-dot${steps[i]===2?' done':steps[i]===1?' active':''}`}>
+                {steps[i]===2 ? '✓' : i+1}
               </div>
-              <div style={{fontSize:8,letterSpacing:'0.06em',textTransform:'uppercase',color:steps[i]===1?'var(--cyan)':'rgba(242,244,248,0.25)',textAlign:'center'}}>{lbl}</div>
+              <div className={`lc-label${steps[i]===1?' active':''}`}>{lbl}</div>
             </div>
           )
         })}
       </div>
 
-      {/* Input */}
-      <div className="fade-in-2" style={{marginBottom:16}}>
-        <label style={{fontSize:10,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',marginBottom:8,display:'block'}}>Annual Income (USD)</label>
+      {/* Income input */}
+      <div style={{marginBottom:14}}>
+        <label className="field-label">Annual Income (USD)</label>
         <input
           type="number" value={income} min="0" max="500000"
           onChange={e => setIncome(e.target.value)}
           placeholder="e.g. 75000"
-          style={{
-            width:'100%',padding:'14px 16px',borderRadius:10,
-            background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',
-            color:'var(--white)',fontFamily:'var(--font-mono)',fontSize:18,fontWeight:500,
-            outline:'none',transition:'border-color 0.2s'
-          }}
-          onFocus={e => e.target.style.borderColor='rgba(0,212,255,0.5)'}
-          onBlur={e  => e.target.style.borderColor='rgba(255,255,255,0.09)'}
+          className="field-input"
+          onFocus={e => e.target.style.borderColor='rgba(212,160,23,0.5)'}
+          onBlur={e  => e.target.style.borderColor='var(--border)'}
         />
       </div>
 
       {/* Slider */}
-      <div className="fade-in-2" style={{marginBottom:20}}>
-        <input type="range" min="0" max="200000" step="1000"
-          value={Math.min(v,200000)}
-          style={{'--pct': pct+'%'}}
+      <div style={{marginBottom:18}}>
+        <input
+          type="range" min="0" max="200000" step="1000"
+          value={Math.min(v, 200000)}
+          style={{'--pct': pct + '%'}}
           onChange={e => setIncome(e.target.value)}
         />
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'rgba(242,244,248,0.25)',marginTop:6}}>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--muted2)',marginTop:5}}>
           {['$0','$50k','$100k','$150k','$200k'].map(l => <span key={l}>{l}</span>)}
         </div>
       </div>
 
       {/* Tier preview */}
-      <div className="fade-in-2" style={{
-        display:'flex',alignItems:'center',gap:10,padding:'14px 16px',
-        borderRadius:10,marginBottom:20,transition:'all 0.3s',
-        background: tier ? `${tier.color.replace('var(--gold)','rgba(255,209,102').replace('var(--silver)','rgba(184,192,204').replace('var(--bronze)','rgba(199,123,58')}0.06)` : 'rgba(255,255,255,0.04)',
-        border:`1px solid ${tier ? tier.color.replace('var(--gold)','rgba(255,209,102,0.3)').replace('var(--silver)','rgba(184,192,204,0.3)').replace('var(--bronze)','rgba(199,123,58,0.3)') : 'rgba(255,255,255,0.09)'}`
+      <div style={{
+        display:'flex', alignItems:'center', gap:12, padding:'12px 14px',
+        borderRadius:10, marginBottom:16, transition:'all 0.2s',
+        background: tierBg(tier), border:`1px solid ${tierBorder(tier)}`,
       }}>
-        <div style={{fontSize:22}}>{tier ? '◈' : '—'}</div>
+        <div style={{fontSize:20}}>◈</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,color:tier?.color||'var(--muted)'}}>
+          <div style={{fontWeight:700,fontSize:14,color:tier?.color||'var(--muted)'}}>
             {tier ? `${tier.label.toUpperCase()} TIER` : 'No tier'}
           </div>
-          <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>
+          <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>
             {tier ? `Qualifies at ${tier.label.toLowerCase()} threshold` : 'Enter income above $30,000'}
           </div>
         </div>
-        <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:20,color:tier?.color||'rgba(242,244,248,0.25)'}}>
+        <div style={{fontWeight:800,fontSize:20,color:tier?.color||'var(--muted2)'}}>
           {tier?.apy || '—'}
         </div>
       </div>
 
-      <button className="btn-primary fade-in-3" onClick={runProof} disabled={running} style={{marginBottom:16}}>
-        {running ? 'RUNNING…' : 'RUN PROOF ›'}
+      {/* Button */}
+      <button
+        className="btn btn-gold"
+        onClick={runProof}
+        disabled={running || !v}
+        style={{marginBottom:14}}
+      >
+        {running ? 'RUNNING…' : 'Run Proof →'}
       </button>
 
       {/* Log */}
       {logs.length > 0 && (
-        <div ref={logRef} style={{
-          padding:'14px 16px',borderRadius:10,marginBottom:16,
-          background:'rgba(0,0,0,0.35)',border:'1px solid rgba(255,255,255,0.09)',
-          fontSize:11,color:'var(--muted)',minHeight:90,lineHeight:1.8,
-          fontFamily:'var(--font-mono)',maxHeight:160,overflowY:'auto'
-        }}>
+        <div ref={logRef} className="proof-log">
           {logs.map(l => (
-            <div key={l.id} style={{animation:'fadeUp 0.3s ease'}}>
-              <span style={{color:'rgba(242,244,248,0.25)',marginRight:8}}>{l.ts}</span>
-              <span style={{color: l.tag==='ok'?'var(--success)': l.tag==='warn'?'var(--gold)':'var(--cyan)'}}>{l.msg}</span>
+            <div key={l.id}>
+              <span style={{color:'var(--muted2)',marginRight:8}}>{l.ts}</span>
+              <span style={{
+                color: l.tag==='ok' ? 'var(--success)' : l.tag==='warn' ? '#FFB347' : 'var(--gold)'
+              }}>
+                {l.msg}
+              </span>
             </div>
           ))}
         </div>
@@ -170,39 +342,52 @@ export default function Simulator() {
 
       {/* Result */}
       {result && (
-        <div style={{
-          padding:20,borderRadius:'var(--radius)',textAlign:'center',
-          animation:'fadeUp 0.4s ease',
-          background: result.qualified ? 'rgba(0,255,163,0.07)' : 'rgba(255,77,109,0.07)',
-          border:`1px solid ${result.qualified ? 'rgba(0,255,163,0.25)' : 'rgba(255,77,109,0.25)'}`
-        }}>
-          <div style={{fontSize:32,marginBottom:10}}>{result.qualified ? '✓' : '✗'}</div>
-          <div style={{fontFamily:'var(--font-display)',fontSize:20,fontWeight:800,marginBottom:6}}>
-            {result.qualified ? `${result.tier.label} Tier Access Granted` : 'Threshold Not Met'}
-          </div>
-          <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.6}}>
+        <div className={result.qualified ? 'result-pass' : 'result-fail'}>
+          <div className="result-icon">{result.qualified ? '✓' : '✗'}</div>
+          <div className="result-title">
             {result.qualified
-              ? `Your encrypted income exceeds the ${result.tier.label.toLowerCase()} threshold. A soulbound credential has been minted. No salary data was revealed.`
-              : 'Your encrypted income does not cross the minimum $30,000 threshold. No data was disclosed.'}
+              ? result.error ? 'Proof Complete' : `${result.tier.label} Tier Access Granted`
+              : 'Threshold Not Met'}
           </div>
-          {result.qualified && (
+          <div className="result-sub">
+            {result.qualified
+              ? result.error
+                ? result.error
+                : `Your encrypted income exceeds the ${result.tier.label.toLowerCase()} threshold. Soulbound credential minted. No salary data revealed.`
+              : 'Your encrypted income does not cross the $30,000 minimum threshold. No data was disclosed.'}
+          </div>
+
+          {result.qualified && result.hash && (
             <>
-              <a href="https://sepolia.etherscan.io/tx/0x4f3a9b2c8d1e5f7a0b3c6d9e2f5a8b1c4d7e0f3"
+              <a
+                href={`https://sepolia.etherscan.io/tx/${result.hash}`}
                 target="_blank" rel="noreferrer"
-                style={{display:'inline-block',marginTop:12,fontSize:10,color:'var(--cyan)',
-                  border:'1px solid rgba(0,212,255,0.3)',padding:'5px 12px',borderRadius:6,textDecoration:'none'}}>
-                View on Etherscan ↗
+                className="etherscan-btn"
+              >
+                View Tx on Etherscan ↗
               </a>
-              <div style={{display:'flex',alignItems:'center',gap:12,padding:'14px 16px',
-                borderRadius:10,background:'rgba(0,255,163,0.06)',border:'1px solid rgba(0,255,163,0.2)',marginTop:12}}>
+              <div className="cred-badge">
                 <div style={{fontSize:22}}>◈</div>
                 <div style={{flex:1,textAlign:'left'}}>
-                  <div style={{fontSize:12,fontWeight:600,color:'var(--success)'}}>Soulbound Credential Minted</div>
-                  <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>{result.tier.label} Tier — 90 day credential</div>
+                  <div style={{fontSize:13,fontWeight:700,color:'var(--success)'}}>
+                    Soulbound Credential Minted
+                  </div>
+                  <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>
+                    {result.tier.label} Tier — 90 day credential
+                  </div>
                 </div>
-                <div style={{fontSize:9,color:'rgba(242,244,248,0.25)',textAlign:'right'}}>Expires in<br/><strong style={{color:'var(--white)'}}>90 days</strong></div>
+                <div style={{fontSize:11,color:'var(--muted2)',textAlign:'right'}}>
+                  Expires in<br/>
+                  <strong style={{color:'var(--white)'}}>90 days</strong>
+                </div>
               </div>
             </>
+          )}
+
+          {result.qualified && !result.hash && !result.error && (
+            <div style={{fontSize:11,color:'var(--muted2)',marginTop:10}}>
+              Simulated — connect wallet for onchain mint
+            </div>
           )}
         </div>
       )}
