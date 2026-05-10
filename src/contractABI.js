@@ -5,9 +5,7 @@ export const ABI = [
     name: 'submitProof',
     type: 'function',
     stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'incomeThreshold', type: 'uint32' }
-    ],
+    inputs: [{ name: 'incomeThreshold', type: 'uint32' }],
     outputs: []
   },
   {

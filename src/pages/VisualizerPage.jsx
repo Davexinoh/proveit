@@ -1,16 +1,14 @@
-import Visualizer from '../components/Visualizer'
+import Visualizer from '../components/Visualizer.jsx'
 
 export default function VisualizerPage() {
   return (
-    <div className="page-wrap">
-      <div className="container">
-        <div className="section-header fade-in" style={{paddingTop:8}}>
-          <div className="section-eyebrow">FHE Engine</div>
-          <div className="section-title">Live visualizer</div>
-          <div className="section-sub">Real-time view of FHE operations as they execute. Each hex block represents a ciphertext chunk being processed homomorphically.</div>
-        </div>
-        <Visualizer />
+    <div className="page">
+      <div className="fade-in">
+        <div style={{fontSize:11,fontWeight:600,color:'var(--gold)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:10}}>FHE Engine</div>
+        <h1 className="page-title">Live visualizer</h1>
+        <p className="page-sub">Real-time TFHE ciphertexts flowing through the homomorphic comparison pipeline.</p>
       </div>
+      <Visualizer />
     </div>
   )
 }
