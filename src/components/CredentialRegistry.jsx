@@ -28,7 +28,7 @@ export default function CredentialRegistry() {
             { name:'tier',    type:'uint8',   indexed:false },
           ]
         },
-        fromBlock: 0n, toBlock:'latest',
+        fromBlock: 7800000n, toBlock:'latest',
       })
       const tally = { 1:0, 2:0, 3:0 }
       logs.forEach(log => {
