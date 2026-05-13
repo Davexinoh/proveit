@@ -64,57 +64,108 @@ APY rates are illustrative for the hackathon prototype.
 | Deployment | Render (Static Site) |
 
 ---
+
+## Project Structure
+
+    proveit/
+    ├── src/
+    │   ├── components/
+    │   │   ├── Nav.jsx
+    │   │   ├── BottomNav.jsx
+    │   │   ├── Simulator.jsx
+    │   │   ├── Visualizer.jsx
+    │   │   ├── Tiers.jsx
+    │   │   ├── Hero.jsx
+    │   │   └── Footer.jsx
+    │   ├── pages/
+    │   │   ├── Landing.jsx
+    │   │   ├── TiersPage.jsx
+    │   │   ├── SimulatorPage.jsx
+    │   │   └── VisualizerPage.jsx
+    │   ├── App.jsx
+    │   ├── main.jsx
+    │   └── index.css
+    ├── index.html
+    ├── vite.config.js
+    ├── tailwind.config.js
+    └── package.json
+
 ---
 
 ## Running Locally
 
-```bash
-# Clone the repo
-git clone https://github.com/Davexinoh/proveit.git
-cd proveit
+    git clone https://github.com/Davexinoh/proveit.git
+    cd proveit
+    npm install
+    npm run dev
 
-# Install dependencies
-npm install
+---
 
-# Start dev server
-npm run dev
-Deployment
+## Deployment
+
 Frontend deployed on Render as a static site.
-Build command:npm run build
-Publish directory:dist
+
+Build command: `npm run build`
+
+Publish directory: `dist`
+
 Live URL: https://proveit-dgjf.onrender.com
 
+---
 
 ## Key Design Decisions
-Why FHE over ZK?
+
+**Why FHE over ZK?**
 This project is built specifically for Zama's FHEVM ecosystem. FHE allows
 arbitrary computation on encrypted data — the threshold comparison runs
 directly on the encrypted income value without any decryption step.
 ZK would require a circuit for each comparison. FHE handles it natively onchain.
-Why soulbound credentials?
+
+**Why soulbound credentials?**
 Soulbound tokens are non-transferable. A credential tied to a wallet
 cannot be sold or transferred to a wallet that didn't earn it.
 This maintains the integrity of the access system.
-Why 90-day expiry?
+
+**Why 90-day expiry?**
 Income changes. A credential issued today may not reflect reality in a year.
 Forced re-attestation keeps the system honest and mirrors how
 real-world compliance checks work.
-Security Notes
-Income values are encrypted client-side before submission
-No plaintext value is ever sent to the contract or stored onchain
-Soulbound credentials prevent credential transfer attacks
-Credential expiry limits the window of stale attestations
-Contract address visible onchain for full transparency
-Hackathon Context
-Built for Zama Developer Program — Mainnet Season 2
+
+---
+
+## Security Notes
+
+- Income values are encrypted client-side before submission
+- No plaintext value is ever sent to the contract or stored onchain
+- Soulbound credentials prevent credential transfer attacks
+- Credential expiry limits the window of stale attestations
+- Contract address visible onchain for full transparency
+
+---
+
+## Hackathon Context
+
+Built for **Zama Developer Program — Mainnet Season 2**
+
 Track: Builder Track
+
 Theme: Confidential Finance
+
 Network: Ethereum Sepolia
-"Confidential finance is the next frontier."
-— Zama Season 2 brief
-Builder
-Built by Davexinoh (Davexinoh Labs)
-𝕏 @dontfadedave
-GitHub Davexinoh
-License
+
+> "Confidential finance is the next frontier." — Zama Season 2 brief
+
+---
+
+## Builder
+
+Built by **Davexinoh** (Davexinoh Labs)
+
+- 𝕏 [@dontfadedave](https://x.com/dontfadedave)
+- GitHub [Davexinoh](https://github.com/Davexinoh)
+
+---
+
+## License
+
 MIT
