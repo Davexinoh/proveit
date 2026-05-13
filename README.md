@@ -85,7 +85,7 @@ Publish directory:dist
 Live URL: https://proveit-dgjf.onrender.com
 
 
-Key Design Decisions
+## Key Design Decisions
 Why FHE over ZK?
 This project is built specifically for Zama's FHEVM ecosystem. FHE allows
 arbitrary computation on encrypted data — the threshold comparison runs
