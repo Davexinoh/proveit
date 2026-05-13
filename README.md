@@ -83,6 +83,8 @@ Frontend deployed on Render as a static site.
 Build command:npm run build
 Publish directory:dist
 Live URL: https://proveit-dgjf.onrender.com
+
+
 Key Design Decisions
 Why FHE over ZK?
 This project is built specifically for Zama's FHEVM ecosystem. FHE allows
